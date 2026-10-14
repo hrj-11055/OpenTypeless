@@ -1,6 +1,6 @@
 {
   "name": "opentypeless",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open-source AI voice dictation for macOS — speak, refine, inject anywhere (BYO API key)",
   "main": "./out/main/index.js",
   "author": "hrj-11055",
