@@ -10,10 +10,19 @@ export default function App(): React.ReactElement {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [test, setTest] = useState<TestState>({ running: false })
   const [lastResult, setLastResult] = useState<DictationResultEvent | null>(null)
+  const [lastError, setLastError] = useState<string | null>(null)
 
   useEffect(() => {
     void window.api.settings.get().then(setView)
-    return window.api.settings.onDictationResult(setLastResult)
+    const offResult = window.api.settings.onDictationResult((r) => {
+      setLastResult(r)
+      setLastError(null)
+    })
+    const offError = window.api.settings.onDictationError((e) => setLastError(e.message))
+    return () => {
+      offResult()
+      offError()
+    }
   }, [])
 
   if (!view) return <main className="loading">加载中…</main>
@@ -141,6 +150,7 @@ export default function App(): React.ReactElement {
 
       <section className="card">
         <h2>最近一次听写</h2>
+        {lastError && <p className="err">听写失败：{testMessage(lastError)}</p>}
         {lastResult ? (
           <div className="result">
             <p className="refined">{lastResult.refinedText}</p>

@@ -148,6 +148,10 @@ export class Orchestrator {
     } catch (err) {
       const msg =
         err instanceof ProviderError ? err.userMessage : err instanceof Error ? err.message : '未知错误'
+      console.error(`[dictation] refine failed: ${msg}`, err instanceof Error ? err.stack : err)
+      if (this.resultListener && !this.resultListener.isDestroyed()) {
+        this.resultListener.webContents.send(CH.dictationError, { message: msg })
+      }
       new Notification({ title: 'OpenTypeless 润色失败', body: msg }).show()
     } finally {
       this.finishRefine()

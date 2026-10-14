@@ -33,6 +33,11 @@ const settingsApi = {
     const listener = (_e: Electron.IpcRendererEvent, result: unknown): void => cb(result)
     ipcRenderer.on(CH.dictationResult, listener)
     return () => ipcRenderer.removeListener(CH.dictationResult, listener)
+  },
+  onDictationError(cb: (err: { message: string }) => void): () => void {
+    const listener = (_e: Electron.IpcRendererEvent, err: { message: string }): void => cb(err)
+    ipcRenderer.on(CH.dictationError, listener)
+    return () => ipcRenderer.removeListener(CH.dictationError, listener)
   }
 }
 

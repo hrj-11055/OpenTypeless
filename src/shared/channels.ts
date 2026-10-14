@@ -11,7 +11,8 @@ export const CH = {
   settingsSet: 'settings:set',
   providerTest: 'provider:test',
   // main -> settings renderer
-  dictationResult: 'dictation:result'
+  dictationResult: 'dictation:result',
+  dictationError: 'dictation:error'
 } as const
 
 export type RecorderCommand = { action: 'start'; maxDurationSec: number } | { action: 'stop' }

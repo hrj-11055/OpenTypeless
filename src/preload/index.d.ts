@@ -49,6 +49,7 @@ interface SettingsApi {
   set(patch: Record<string, unknown>): Promise<SettingsView>
   testProvider(): Promise<{ ok: boolean; message?: string }>
   onDictationResult(cb: (result: DictationResultEvent) => void): () => void
+  onDictationError(cb: (err: { message: string }) => void): () => void
 }
 
 interface Api {
