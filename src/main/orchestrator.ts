@@ -155,6 +155,7 @@ export class Orchestrator {
       let injected = false
       if (initNative().axTrusted) injected = await injectText(result.refinedText)
       if (!injected) clipboard.writeText(result.refinedText)
+      console.log(`[inject] ${injected ? 'pasted at cursor' : 'clipboard only (no AX trust)'}`)
       new Notification({
         title: injected ? 'OpenTypeless 已注入' : 'OpenTypeless',
         body: injected

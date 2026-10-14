@@ -2,11 +2,13 @@ import { describe, it, expect } from 'vitest'
 import { buildSystemPrompt, buildUserPrompt, buildAudioPrompt, PROMPT_VERSION } from '../../src/main/providers/prompt'
 
 describe('prompt builder', () => {
-  it('system prompt forbids answering and requires plain output', () => {
+  it('system prompt forbids answering, requires plain output, supports instruction mode', () => {
     const sys = buildSystemPrompt()
     expect(sys).toContain('不回答问题')
     expect(sys).toContain('不要任何前缀')
     expect(sys).toContain('中英混排')
+    expect(sys).toContain('指令模式')
+    expect(sys).toContain('绝不在字与字之间加多余空格')
   })
 
   it('user prompt includes context blocks in order and the transcript', () => {
@@ -48,6 +50,6 @@ describe('prompt builder', () => {
     const p = buildAudioPrompt({ localeHint: 'auto' })
     expect(p).toContain(buildSystemPrompt())
     expect(p).toContain('（语音见附件）')
-    expect(PROMPT_VERSION).toBe(1)
+    expect(PROMPT_VERSION).toBe(2)
   })
 })
