@@ -22,7 +22,7 @@ describe('mergeSettings', () => {
     expect(s.providerConfig.relay.baseUrl).toBe('https://x/v1')
     expect(s.providerConfig.relay.model).toBe('m1')
     expect(s.providerConfig.relay.apiKeyEnc).toBeUndefined()
-    expect(s.providerConfig.gemini.model).toBe('gemini-2.5-flash')
+    expect(s.providerConfig.gemini.model).toBe('gemini-flash-latest')
     expect(s.maxDurationSec).toBe(60)
   })
 

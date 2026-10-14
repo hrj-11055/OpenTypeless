@@ -24,8 +24,9 @@ export function defaultSettings(): AppSettings {
     shortcut: 'Control+Command+V',
     providerId: 'gemini',
     providerConfig: {
-      // Default model IDs verified against vendor docs on 2026-10-14.
-      gemini: { model: 'gemini-2.5-flash' },
+      // Default model IDs verified against live vendor APIs on 2026-10-14:
+      // gemini-2.5-flash is 404 for new users; use the rolling alias instead.
+      gemini: { model: 'gemini-flash-latest' },
       openai: { sttModel: 'whisper-1', refineModel: 'gpt-4o-mini' },
       relay: { model: '' }
     },
