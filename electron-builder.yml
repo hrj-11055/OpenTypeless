@@ -1,0 +1,26 @@
+appId: com.hrj11055.opentypeless
+productName: OpenTypeless
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!tests/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,CLAUDE.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,vitest.config.ts}'
+asarUnpack:
+  - resources/**
+npmRebuild: false
+mac:
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSMicrophoneUsageDescription: OpenTypeless needs microphone access for voice dictation.
+dmg:
+  artifactName: OpenTypeless-${version}-${arch}.${ext}

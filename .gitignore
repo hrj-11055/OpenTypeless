@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+intel/
+*.env
+*.env.*
+*.dmg
+*.local
+.DS_Store
+eslint-cache/
+coverage/
