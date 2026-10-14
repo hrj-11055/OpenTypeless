@@ -66,7 +66,7 @@ export default function App(): React.ReactElement {
     <main className="page">
       <header>
         <h1>OpenTypeless</h1>
-        <p className="subtitle">开源 AI 语音听写 · 快捷键 {view.shortcut}</p>
+        <p className="subtitle">开源 AI 语音听写 · 按 Fn 或 {view.shortcut} 开始</p>
       </header>
 
       <section className="card">
@@ -163,7 +163,7 @@ export default function App(): React.ReactElement {
             </div>
           </div>
         ) : (
-          <p className="empty">还没有听写记录。按 {view.shortcut} 开始你的第一次听写。</p>
+          <p className="empty">还没有听写记录。按 Fn 或 {view.shortcut} 开始你的第一次听写。</p>
         )}
       </section>
     </main>
