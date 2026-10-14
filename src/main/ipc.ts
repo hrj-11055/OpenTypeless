@@ -10,6 +10,7 @@ import {
 import { getActiveProvider, listProviders } from './providers/registry'
 import { ProviderError } from './providers/types'
 import { initNative } from './native'
+import type { HistoryRepo } from './db/historyRepo'
 import type { AppSettings } from './settings/merge'
 
 export interface SanitizedSettings {
@@ -46,8 +47,19 @@ export function sanitizedSettings(): SanitizedSettings {
   }
 }
 
-export function registerSettingsIpc(): void {
+export function registerSettingsIpc(
+  historyRepo?: HistoryRepo,
+  onShortcutChanged?: (accelerator: string) => void
+): void {
   ipcMain.handle(CH.settingsGet, () => sanitizedSettings())
+
+  if (historyRepo) {
+    ipcMain.handle(CH.historyList, (_e, opts: { limit?: number; offset?: number; q?: string }) =>
+      historyRepo.list(opts ?? {})
+    )
+    ipcMain.handle(CH.historyDelete, (_e, id: number) => historyRepo.remove(id))
+    ipcMain.handle(CH.historyClear, () => historyRepo.clear())
+  }
 
   // Renderer sends a full settings patch; apiKey (if non-empty) is a fresh
   // plaintext key that main encrypts immediately. Empty apiKey = keep stored.
@@ -66,6 +78,9 @@ export function registerSettingsIpc(): void {
     delete (patch as Record<string, unknown>).apiKey
     if (apiKey) setApiKey(next.providerId, apiKey)
     saveSettings(next)
+    if (patch.shortcut && patch.shortcut !== current.shortcut) {
+      onShortcutChanged?.(next.shortcut)
+    }
     return sanitizedSettings()
   })
 

@@ -1,16 +1,25 @@
 import { useEffect, useState } from 'react'
-import type { DictationResultEvent, SettingsView } from '../../preload/index.d'
+import type {
+  DictationResultEvent,
+  HistoryRowView,
+  SettingsView
+} from '../../preload/index.d'
+import { makeT, type Locale } from './i18n'
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 type TestState = { running: boolean; ok?: boolean; message?: string }
+type Tab = 'settings' | 'history'
 
 export default function App(): React.ReactElement {
   const [view, setView] = useState<SettingsView | null>(null)
+  const [tab, setTab] = useState<Tab>('settings')
   const [apiKey, setApiKey] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [test, setTest] = useState<TestState>({ running: false })
   const [lastResult, setLastResult] = useState<DictationResultEvent | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
+
+  const t = makeT((view?.locale as Locale) ?? 'zh-CN')
 
   useEffect(() => {
     void window.api.settings.get().then(setView)
@@ -25,28 +34,26 @@ export default function App(): React.ReactElement {
     }
   }, [])
 
-  if (!view) return <main className="loading">加载中…</main>
+  if (!view) return <main className="loading">…</main>
 
   const providerId = view.providerId
   const conf = view.providerConfig[providerId] ?? {}
   const setConf = (patch: Record<string, string>): void => {
     setView({
       ...view,
-      providerConfig: {
-        ...view.providerConfig,
-        [providerId]: { ...conf, ...patch }
-      }
+      providerConfig: { ...view.providerConfig, [providerId]: { ...conf, ...patch } }
     })
     setSaveState('idle')
   }
 
-  const save = async (): Promise<void> => {
+  const save = async (extra: Record<string, unknown> = {}): Promise<void> => {
     setSaveState('saving')
     try {
       const next = await window.api.settings.set({
         providerId,
         providerConfig: { [providerId]: { ...conf } },
-        ...(apiKey ? { apiKey } : {})
+        ...(apiKey ? { apiKey } : {}),
+        ...extra
       })
       setView(next)
       setApiKey('')
@@ -62,129 +69,242 @@ export default function App(): React.ReactElement {
     setTest({ running: false, ...r })
   }
 
+  const errMsg = (key?: string): string => t(`err.${key ?? ''}`) === `err.${key ?? ''}` ? (key ?? '') : t(`err.${key ?? ''}`)
+
   return (
     <main className="page">
       <header>
         <h1>OpenTypeless</h1>
-        <p className="subtitle">开源 AI 语音听写 · 按 Fn 或 {view.shortcut} 开始</p>
+        <p className="subtitle">{t('app.subtitle', { shortcut: view.shortcut })}</p>
       </header>
 
-      <section className="card">
-        <h2>权限</h2>
-        <div className="result-meta">
-          <span className={view.axTrusted ? 'ok' : 'err'}>
-            {view.axTrusted ? '辅助功能 ✓（上下文感知与文字注入已启用）' : '辅助功能未授权：仅纯听写，无上下文感知，结果只复制到剪贴板'}
-          </span>
-          {!view.axTrusted && (
-            <button
-              onClick={() =>
-                void window.api.settings.openAccessibilitySettings()
-              }
-            >
-              去授权
-            </button>
-          )}
-        </div>
-      </section>
+      <nav className="tabs">
+        <button className={tab === 'settings' ? 'tab active' : 'tab'} onClick={() => setTab('settings')}>
+          {t('tab.settings')}
+        </button>
+        <button className={tab === 'history' ? 'tab active' : 'tab'} onClick={() => setTab('history')}>
+          {t('tab.history')}
+        </button>
+      </nav>
 
-      <section className="card">
-        <h2>AI 服务</h2>
-        <div className="providers">
-          {view.providers.map((p) => (
-            <label key={p.id} className={`provider ${providerId === p.id ? 'active' : ''}`}>
+      {tab === 'settings' ? (
+        <>
+          <section className="card">
+            <h2>{t('perm.title')}</h2>
+            <div className="result-meta">
+              <span className={view.axTrusted ? 'ok' : 'err'}>
+                {view.axTrusted ? t('perm.ok') : t('perm.no')}
+              </span>
+              {!view.axTrusted && (
+                <button onClick={() => window.api.settings.openAccessibilitySettings()}>
+                  {t('perm.go')}
+                </button>
+              )}
+            </div>
+          </section>
+
+          <section className="card">
+            <h2>{t('ai.title')}</h2>
+            <div className="providers">
+              {view.providers.map((p) => (
+                <label key={p.id} className={`provider ${providerId === p.id ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="provider"
+                    checked={providerId === p.id}
+                    onChange={() => {
+                      setView({ ...view, providerId: p.id })
+                      setSaveState('idle')
+                      setTest({ running: false })
+                    }}
+                  />
+                  <span>{p.label}</span>
+                  <small>{t(`stages.${p.stages}`)}</small>
+                </label>
+              ))}
+            </div>
+
+            {providerId === 'relay' && (
+              <Field label={t('ai.relayUrl')} hint={t('ai.relayHint')}>
+                <input
+                  value={conf.baseUrl ?? ''}
+                  placeholder="https://api.example.com/v1"
+                  onChange={(e) => setConf({ baseUrl: e.target.value })}
+                />
+              </Field>
+            )}
+
+            {providerId === 'openai' ? (
+              <>
+                <Field label={t('ai.sttModel')}>
+                  <input value={conf.sttModel ?? ''} onChange={(e) => setConf({ sttModel: e.target.value })} />
+                </Field>
+                <Field label={t('ai.refineModel')}>
+                  <input
+                    value={conf.refineModel ?? ''}
+                    onChange={(e) => setConf({ refineModel: e.target.value })}
+                  />
+                </Field>
+              </>
+            ) : (
+              <Field label={t('ai.model')}>
+                <input
+                  value={conf.model ?? ''}
+                  placeholder={providerId === 'gemini' ? 'gemini-flash-latest' : 'gemini-3.8-flash-high'}
+                  onChange={(e) => setConf({ model: e.target.value })}
+                />
+              </Field>
+            )}
+
+            <Field label={t('ai.key')} hint={conf.keyConfigured ? t('ai.keySaved') : undefined}>
               <input
-                type="radio"
-                name="provider"
-                checked={providerId === p.id}
-                onChange={() => {
-                  setView({ ...view, providerId: p.id })
-                  setSaveState('idle')
-                  setTest({ running: false })
+                type="password"
+                value={apiKey}
+                placeholder={conf.keyConfigured ? t('ai.keySavedPlaceholder') : t('ai.keyPlaceholder')}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+            </Field>
+
+            <div className="actions">
+              <button className="primary" onClick={() => void save()} disabled={saveState === 'saving'}>
+                {saveState === 'saving' ? t('ai.saving') : t('ai.save')}
+              </button>
+              <button onClick={() => void runTest()} disabled={test.running || saveState !== 'saved'}>
+                {test.running ? t('ai.testing') : t('ai.test')}
+              </button>
+              {saveState === 'saved' && <span className="ok">{t('ai.saved')}</span>}
+              {saveState === 'error' && <span className="err">{t('ai.saveFailed')}</span>}
+              {test.ok === true && <span className="ok">{t('ai.testOk')}</span>}
+              {test.ok === false && <span className="err">{errMsg(test.message)}</span>}
+            </div>
+          </section>
+
+          <section className="card">
+            <h2>{t('tab.settings')}</h2>
+            <Field label={t('settings.language')}>
+              <select
+                value={view.locale}
+                onChange={(e) => {
+                  const locale = e.target.value as Locale
+                  setView({ ...view, locale })
+                  void save({ locale })
+                }}
+              >
+                <option value="zh-CN">简体中文</option>
+                <option value="en">English</option>
+              </select>
+            </Field>
+            <Field label={t('settings.shortcut')} hint={t('settings.shortcutHint')}>
+              <input
+                defaultValue={view.shortcut}
+                onBlur={(e) => {
+                  const v = e.target.value.trim()
+                  if (v && v !== view.shortcut) void save({ shortcut: v })
                 }}
               />
-              <span>{p.label}</span>
-              <small>{p.stages === 1 ? '一段式' : '两段式'}</small>
-            </label>
-          ))}
-        </div>
-
-        {providerId === 'relay' && (
-          <Field label="中转地址 Base URL" hint="OpenAI 兼容接口，如 https://api.example.com/v1">
-            <input
-              value={conf.baseUrl ?? ''}
-              placeholder="https://api.example.com/v1"
-              onChange={(e) => setConf({ baseUrl: e.target.value })}
-            />
-          </Field>
-        )}
-
-        {providerId === 'openai' ? (
-          <>
-            <Field label="转写模型">
-              <input value={conf.sttModel ?? ''} onChange={(e) => setConf({ sttModel: e.target.value })} />
             </Field>
-            <Field label="润色模型">
-              <input
-                value={conf.refineModel ?? ''}
-                onChange={(e) => setConf({ refineModel: e.target.value })}
-              />
-            </Field>
-          </>
-        ) : (
-          <Field label="模型">
-            <input
-              value={conf.model ?? ''}
-              placeholder={providerId === 'gemini' ? 'gemini-2.5-flash' : 'gemini-3.8-flash-high'}
-              onChange={(e) => setConf({ model: e.target.value })}
-            />
-          </Field>
-        )}
+          </section>
 
-        <Field
-          label="API Key"
-          hint={conf.keyConfigured ? '已加密保存（输入框留空则保持不变）' : undefined}
-        >
-          <input
-            type="password"
-            value={apiKey}
-            placeholder={conf.keyConfigured ? '••••••••（已保存）' : 'sk-…'}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-        </Field>
-
-        <div className="actions">
-          <button className="primary" onClick={() => void save()} disabled={saveState === 'saving'}>
-            {saveState === 'saving' ? '保存中…' : '保存'}
-          </button>
-          <button onClick={() => void runTest()} disabled={test.running || saveState !== 'saved'}>
-            {test.running ? '测试中…' : '测试连接'}
-          </button>
-          {saveState === 'saved' && <span className="ok">已保存 ✓</span>}
-          {saveState === 'error' && <span className="err">保存失败</span>}
-          {test.ok === true && <span className="ok">连接正常 ✓</span>}
-          {test.ok === false && <span className="err">{testMessage(test.message)}</span>}
-        </div>
-      </section>
-
-      <section className="card">
-        <h2>最近一次听写</h2>
-        {lastError && <p className="err">听写失败：{testMessage(lastError)}</p>}
-        {lastResult ? (
-          <div className="result">
-            <p className="refined">{lastResult.refinedText}</p>
-            {lastResult.rawTranscript && <p className="raw">原始：{lastResult.rawTranscript}</p>}
-            <div className="result-meta">
-              <span>{lastResult.modelsUsed.join(' + ')}</span>
-              <button onClick={() => void navigator.clipboard.writeText(lastResult.refinedText)}>
-                复制
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="empty">还没有听写记录。按 Fn 或 {view.shortcut} 开始你的第一次听写。</p>
-        )}
-      </section>
+          <section className="card">
+            <h2>{t('result.title')}</h2>
+            {lastError && <p className="err">{t('result.failed', { msg: errMsg(lastError) })}</p>}
+            {lastResult ? (
+              <div className="result">
+                <p className="refined">{lastResult.refinedText}</p>
+                {lastResult.rawTranscript && (
+                  <p className="raw">{t('result.raw', { text: lastResult.rawTranscript })}</p>
+                )}
+                <div className="result-meta">
+                  <span>{lastResult.modelsUsed.join(' + ')}</span>
+                  <button onClick={() => void navigator.clipboard.writeText(lastResult.refinedText)}>
+                    {t('result.copy')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="empty">{t('result.empty', { shortcut: view.shortcut })}</p>
+            )}
+          </section>
+        </>
+      ) : (
+        <HistoryPanel t={t} />
+      )}
     </main>
+  )
+}
+
+function HistoryPanel(props: { t: (k: string, v?: Record<string, string>) => string }): React.ReactElement {
+  const { t } = props
+  const [rows, setRows] = useState<HistoryRowView[] | null>(null)
+  const [q, setQ] = useState('')
+
+  const refresh = (query: string): void => {
+    void window.api.settings.history.list({ q: query || undefined, limit: 100 }).then(setRows)
+  }
+  useEffect(() => refresh(''), [])
+
+  return (
+    <section className="card">
+      <div className="history-toolbar">
+        <input
+          className="search"
+          placeholder={t('history.search')}
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value)
+            refresh(e.target.value)
+          }}
+        />
+        <button
+          onClick={() => {
+            void window.api.settings.history.clear().then(() => refresh(''))
+          }}
+        >
+          {t('history.clear')}
+        </button>
+      </div>
+      {rows === null ? (
+        <p className="empty">…</p>
+      ) : rows.length === 0 ? (
+        <p className="empty">{t('history.empty')}</p>
+      ) : (
+        <ul className="history-list">
+          {rows.map((r) => (
+            <li key={r.id} className={r.status === 'error' ? 'err-row' : ''}>
+              <div className="history-main">
+                {r.status === 'error' ? (
+                  <span className="err">
+                    {t('history.error')}: {r.error_msg}
+                  </span>
+                ) : (
+                  <span className="refined">{r.refined_text}</span>
+                )}
+              </div>
+              <div className="history-meta">
+                <span>
+                  {r.created_at} · {r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : ''} ·{' '}
+                  {r.focused_app_name ?? ''}
+                </span>
+                <span className="history-actions">
+                  {r.refined_text && (
+                    <button onClick={() => void navigator.clipboard.writeText(r.refined_text!)}>
+                      {t('history.copy')}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      void window.api.settings.history.remove(r.id).then(() => refresh(q))
+                    }}
+                  >
+                    {t('history.delete')}
+                  </button>
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
@@ -200,20 +320,4 @@ function Field(props: {
       {props.hint && <small className="hint">{props.hint}</small>}
     </label>
   )
-}
-
-function testMessage(key?: string): string {
-  const map: Record<string, string> = {
-    'settings.err.noKey': '请先填写 API Key 并保存',
-    'settings.err.noBaseUrl': '请填写中转地址',
-    'settings.err.noModel': '请填写模型名',
-    'err.apiKeyRejected': 'Key 被拒绝（401/403）',
-    'err.rateLimited': '请求过于频繁（429）',
-    'err.network': '网络错误',
-    'err.emptyResult': '模型返回为空',
-    'err.badResponse': '响应格式异常',
-    'settings.err.noProvider': '未找到 AI 服务配置'
-  }
-  if (key && map[key]) return map[key]
-  return key?.replace(/^err\.http\./, 'HTTP ') ?? '未知错误'
 }

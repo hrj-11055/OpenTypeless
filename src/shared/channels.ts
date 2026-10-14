@@ -10,6 +10,9 @@ export const CH = {
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   providerTest: 'provider:test',
+  historyList: 'history:list',
+  historyDelete: 'history:delete',
+  historyClear: 'history:clear',
   // main -> settings renderer
   dictationResult: 'dictation:result',
   dictationError: 'dictation:error'

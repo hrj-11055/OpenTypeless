@@ -43,6 +43,12 @@ const settingsApi = {
     void shell.openExternal(
       'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
     )
+  },
+  history: {
+    list: (opts: { limit?: number; offset?: number; q?: string }): Promise<unknown> =>
+      ipcRenderer.invoke(CH.historyList, opts),
+    remove: (id: number): Promise<void> => ipcRenderer.invoke(CH.historyDelete, id),
+    clear: (): Promise<void> => ipcRenderer.invoke(CH.historyClear)
   }
 }
 

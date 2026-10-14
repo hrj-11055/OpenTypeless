@@ -12,6 +12,8 @@ import { Orchestrator } from './orchestrator'
 import { createTray, type TrayHandle } from './tray'
 import { registerSettingsIpc } from './ipc'
 import { createFnWatcher, initNative } from './native'
+import { openDb } from './db'
+import { createHistoryRepo } from './db/historyRepo'
 import { CH, type RecorderStoppedPayload } from '../shared/channels'
 
 // Keep dev-run data (settings/db/TCC grants) separate from the packaged app's.
@@ -66,7 +68,13 @@ app.whenReady().then(() => {
   const captureWindow = createCaptureWindow()
   orchestrator = new Orchestrator(captureWindow)
   wireRecorderIpc(orchestrator)
-  registerSettingsIpc()
+
+  const historyRepo = createHistoryRepo(openDb())
+  orchestrator.setHistoryRepo(historyRepo)
+  registerSettingsIpc(historyRepo, (newShortcut) => {
+    if (shortcutHandle) unregisterShortcut(shortcutHandle)
+    shortcutHandle = registerDictationShortcut(newShortcut, () => orchestrator?.toggle())
+  })
 
   shortcutHandle = registerDictationShortcut(DEFAULT_SHORTCUT, () => orchestrator?.toggle())
 

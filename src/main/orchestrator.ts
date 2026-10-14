@@ -9,6 +9,7 @@ import { ProviderError, type DictationContext, type DictationResult } from './pr
 import { captureSnapshot } from './contextSnapshot'
 import { injectText } from './native/pasteInject'
 import { initNative } from './native'
+import type { HistoryRepo } from './db/historyRepo'
 
 export type DictationState = 'idle' | 'starting' | 'recording' | 'processing' | 'refining'
 
@@ -31,6 +32,11 @@ export class Orchestrator {
   private resultListener: BrowserWindow | null = null
   /** Context captured at dictation start (before recording changes focus). */
   private snapshotPromise: Promise<DictationContext> | null = null
+  private history: HistoryRepo | null = null
+
+  setHistoryRepo(repo: HistoryRepo): void {
+    this.history = repo
+  }
 
   constructor(private captureWin: BrowserWindow) {}
 
@@ -139,7 +145,7 @@ export class Orchestrator {
       return
     }
     try {
-      const context = await (this.snapshotPromise ?? Promise.resolve({ localeHint: 'auto' as const }))
+      const context = await (this.snapshotPromise ?? Promise.resolve<DictationContext>({ localeHint: 'auto' }))
       console.log(`[dictation] context: ${JSON.stringify(context)}`)
       const result = await active.provider.run(
         { audio: payload, context, mode: 'refine' },
@@ -157,6 +163,19 @@ export class Orchestrator {
       if (initNative().axTrusted) injected = await injectText(result.refinedText)
       if (!injected) clipboard.writeText(result.refinedText)
       console.log(`[inject] ${injected ? 'pasted at cursor' : 'clipboard only (no AX trust)'}`)
+      this.history?.insert({
+        status: 'ok',
+        refined_text: result.refinedText,
+        raw_transcript: result.rawTranscript,
+        detected_language: result.detectedLanguage,
+        duration_ms: payload.durationMs,
+        provider_id: result.providerId,
+        models_used: result.modelsUsed,
+        focused_app_name: context.appName,
+        bundle_id: context.bundleId,
+        window_title: context.windowTitle,
+        audio_context: { selectedText: context.selectedText, focusedText: context.focusedText }
+      })
       new Notification({
         title: injected ? 'OpenTypeless 已注入' : 'OpenTypeless',
         body: injected
@@ -167,6 +186,7 @@ export class Orchestrator {
       const msg =
         err instanceof ProviderError ? err.userMessage : err instanceof Error ? err.message : '未知错误'
       console.error(`[dictation] refine failed: ${msg}`, err instanceof Error ? err.stack : err)
+      this.history?.insert({ status: 'error', error_msg: msg, duration_ms: payload.durationMs })
       if (this.resultListener && !this.resultListener.isDestroyed()) {
         this.resultListener.webContents.send(CH.dictationError, { message: msg })
       }

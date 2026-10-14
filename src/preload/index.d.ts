@@ -37,6 +37,26 @@ export interface SettingsView {
   axTrusted: boolean
 }
 
+export interface HistoryRowView {
+  id: number
+  created_at: string
+  status: string
+  error_msg: string | null
+  refined_text: string | null
+  raw_transcript: string | null
+  duration_ms: number | null
+  provider_id: string | null
+  models_used: string | null
+  focused_app_name: string | null
+  window_title: string | null
+}
+
+interface HistoryApi {
+  list(opts: { limit?: number; offset?: number; q?: string }): Promise<HistoryRowView[]>
+  remove(id: number): Promise<void>
+  clear(): Promise<void>
+}
+
 export interface DictationResultEvent {
   refinedText: string
   rawTranscript?: string
@@ -52,6 +72,7 @@ interface SettingsApi {
   onDictationResult(cb: (result: DictationResultEvent) => void): () => void
   onDictationError(cb: (err: { message: string }) => void): () => void
   openAccessibilitySettings(): void
+  history: HistoryApi
 }
 
 interface Api {
