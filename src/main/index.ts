@@ -1,79 +1,98 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
+import { app, shell, session, ipcMain, powerMonitor } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { createSettingsWindow } from './windows/settingsWindow'
+import { createCaptureWindow } from './windows/captureWindow'
+import {
+  registerDictationShortcut,
+  unregisterShortcut,
+  DEFAULT_SHORTCUT,
+  type ShortcutHandle
+} from './shortcuts'
+import { Orchestrator } from './orchestrator'
+import { createTray, type TrayHandle } from './tray'
+import { CH, type RecorderStoppedPayload } from '../shared/channels'
 
-// Keep dev-run data (settings/db/TCC hints) separate from the packaged app's.
+// Keep dev-run data (settings/db/TCC grants) separate from the packaged app's.
 if (is.dev) {
   app.setPath('userData', app.getPath('userData') + '-dev')
 }
 
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
-    }
-  })
+// Single instance: a second launch just focuses the existing settings window.
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+}
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
+let settingsWindow: Electron.BrowserWindow | null = null
+let orchestrator: Orchestrator | null = null
+let shortcutHandle: ShortcutHandle | null = null
+let trayHandle: TrayHandle | null = null
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+function openSettings(): void {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.show()
+    settingsWindow.focus()
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    settingsWindow = createSettingsWindow()
   }
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
+function wireRecorderIpc(orch: Orchestrator): void {
+  ipcMain.on(CH.recorderStarted, () => orch.onStarted())
+  ipcMain.on(CH.recorderStopped, (_e, payload: RecorderStoppedPayload) => orch.onStopped(payload))
+  ipcMain.on(CH.recorderError, (_e, err: { code: string; message?: string }) => orch.onError(err))
+}
+
 app.whenReady().then(() => {
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.hrj11055.opentypeless')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // Only the hidden capture page may request microphone permission — a hidden
+  // window can never show a permission prompt, so grant it programmatically.
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => {
+    const isCapturePage = wc.getURL().includes('capture.html')
+    callback(permission === 'media' && isCapturePage)
+  })
 
-  createWindow()
+  const captureWindow = createCaptureWindow()
+  orchestrator = new Orchestrator(captureWindow)
+  wireRecorderIpc(orchestrator)
 
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  shortcutHandle = registerDictationShortcut(DEFAULT_SHORTCUT, () => orchestrator?.toggle())
+
+  // Re-register after sleep/wake: macOS occasionally drops hotkey registrations.
+  powerMonitor.on('resume', () => {
+    if (shortcutHandle) unregisterShortcut(shortcutHandle)
+    shortcutHandle = registerDictationShortcut(DEFAULT_SHORTCUT, () => orchestrator?.toggle())
+  })
+
+  orchestrator.setStateListener(() => trayHandle?.refresh())
+  trayHandle = createTray(openSettings, () => orchestrator?.getState() ?? 'idle')
+
+  app.on('second-instance', () => openSettings())
+
+  app.on('activate', () => {
+    if (settingsWindow === null || settingsWindow.isDestroyed()) openSettings()
+  })
+
+  openSettings()
+})
+
+app.on('will-quit', () => {
+  if (shortcutHandle) unregisterShortcut(shortcutHandle)
+})
+
+// Tray app: keep running when windows close (macOS convention).
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit()
+})
+
+// Open external links in the default browser instead of in-app windows.
+app.on('web-contents-created', (_e, contents) => {
+  contents.setWindowOpenHandler((details) => {
+    if (details.url.startsWith('http')) void shell.openExternal(details.url)
+    return { action: 'deny' }
   })
 })
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
-})
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
