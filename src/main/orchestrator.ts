@@ -131,6 +131,7 @@ export class Orchestrator {
     this.setState('refining')
     const active = getActiveProvider()
     if (!active) {
+      console.log('[dictation] refine skipped: no active provider configured')
       this.finishRefine()
       new Notification({
         title: 'OpenTypeless',
@@ -140,12 +141,14 @@ export class Orchestrator {
     }
     const invalid = active.provider.validateConfig(active.cfg)
     if (invalid) {
+      console.log(`[dictation] refine skipped: invalid config (${invalid}) — key missing?`)
       this.finishRefine()
       new Notification({ title: 'OpenTypeless', body: '配置不完整，请打开设置检查' }).show()
       return
     }
     try {
-      const context = await (this.snapshotPromise ?? Promise.resolve<DictationContext>({ localeHint: 'auto' }))
+      const context = await (this.snapshotPromise ??
+        Promise.resolve<DictationContext>({ localeHint: 'auto' }))
       console.log(`[dictation] context: ${JSON.stringify(context)}`)
       const result = await active.provider.run(
         { audio: payload, context, mode: 'refine' },
@@ -153,7 +156,9 @@ export class Orchestrator {
         AbortSignal.timeout(90_000)
       )
       this.lastRefined = result
-      console.log(`[dictation] refined (${result.providerId}/${result.modelsUsed.join('+')}): ${result.refinedText.slice(0, 80)}`)
+      console.log(
+        `[dictation] refined (${result.providerId}/${result.modelsUsed.join('+')}): ${result.refinedText.slice(0, 80)}`
+      )
       if (this.resultListener && !this.resultListener.isDestroyed()) {
         this.resultListener.webContents.send(CH.dictationResult, result)
       }
@@ -184,7 +189,11 @@ export class Orchestrator {
       }).show()
     } catch (err) {
       const msg =
-        err instanceof ProviderError ? err.userMessage : err instanceof Error ? err.message : '未知错误'
+        err instanceof ProviderError
+          ? err.userMessage
+          : err instanceof Error
+            ? err.message
+            : '未知错误'
       console.error(`[dictation] refine failed: ${msg}`, err instanceof Error ? err.stack : err)
       this.history?.insert({ status: 'error', error_msg: msg, duration_ms: payload.durationMs })
       if (this.resultListener && !this.resultListener.isDestroyed()) {
