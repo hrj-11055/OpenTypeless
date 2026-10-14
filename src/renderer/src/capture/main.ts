@@ -5,9 +5,13 @@ const api = window.api.recorder
 api.onCommand(async (cmd) => {
   try {
     if (cmd.action === 'start') {
-      await startRecording(cmd.maxDurationSec, () => {
-        // auto-stop triggered inside the engine
-      })
+      await startRecording(
+        cmd.maxDurationSec,
+        () => {
+          // auto-stop triggered inside the engine
+        },
+        cmd.preferWav
+      )
       api.sendStarted()
     } else if (cmd.action === 'stop') {
       stopRecording()

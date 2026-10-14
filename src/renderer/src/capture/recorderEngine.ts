@@ -18,6 +18,7 @@ let chunks: Blob[] = []
 let stream: MediaStream | null = null
 let startedAt = 0
 let autoStopTimer: number | null = null
+let preferWav = false
 let onStoppedCallback:
   | ((
       audio: { webm: { data: Uint8Array; mimeType: string }; wav?: { data: Uint8Array; mimeType: string } },
@@ -32,8 +33,13 @@ export function isRecording(): boolean {
   return mediaRecorder !== null && mediaRecorder.state === 'recording'
 }
 
-export async function startRecording(maxDurationSec: number, onAutoStop: () => void): Promise<void> {
+export async function startRecording(
+  maxDurationSec: number,
+  onAutoStop: () => void,
+  wantWav = false
+): Promise<void> {
   if (isRecording()) return
+  preferWav = wantWav
 
   let micStream: MediaStream
   try {
@@ -78,10 +84,14 @@ export async function startRecording(maxDurationSec: number, onAutoStop: () => v
     const blob = new Blob(chunks, { type: mimeType })
     releaseStream()
     void (async () => {
-      const [webmBuf, wavBuf] = await Promise.all([
-        blob.arrayBuffer(),
-        import('./wav').then((m) => m.blobToWav16kMono(blob))
-      ])
+      const webmBuf = await blob.arrayBuffer()
+      // WAV rendition only when the active provider needs it (Gemini native);
+      // relays/OpenAI take webm directly — skipping the decode+encode saves
+      // ~0.5-1s of perceived latency.
+      let wavBuf: ArrayBuffer | null = null
+      if (preferWav) {
+        wavBuf = await import('./wav').then((m) => m.blobToWav16kMono(blob))
+      }
       onStoppedCallback?.(
         {
           webm: { data: new Uint8Array(webmBuf), mimeType },

@@ -75,7 +75,8 @@ export class Orchestrator {
     this.psbId = powerSaveBlocker.start('prevent-app-suspension')
     this.captureWin.webContents.send(CH.recorderCommand, {
       action: 'start',
-      maxDurationSec: MAX_DURATION_SEC
+      maxDurationSec: MAX_DURATION_SEC,
+      preferWav: getActiveProvider()?.provider.id === 'gemini'
     })
     // State flips to 'recording' when the capture window confirms.
     // If it never confirms (broken preload etc.), recover after a timeout.

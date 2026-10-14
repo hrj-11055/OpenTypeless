@@ -51,7 +51,8 @@ describe('Orchestrator state machine', () => {
     orch.toggle() // start
     expect(win.webContents.send).toHaveBeenCalledWith(CH.recorderCommand, {
       action: 'start',
-      maxDurationSec: 120
+      maxDurationSec: 120,
+      preferWav: true // test env defaults to the gemini provider
     })
     expect(orch.getState()).toBe('starting')
 

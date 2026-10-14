@@ -15,7 +15,9 @@ export const CH = {
   dictationError: 'dictation:error'
 } as const
 
-export type RecorderCommand = { action: 'start'; maxDurationSec: number } | { action: 'stop' }
+export type RecorderCommand =
+  | { action: 'start'; maxDurationSec: number; preferWav: boolean }
+  | { action: 'stop' }
 
 export interface AudioPart {
   data: Uint8Array
