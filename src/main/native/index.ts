@@ -60,7 +60,10 @@ export interface FnWatcher {
 export function createFnWatcher(): FnWatcher | null {
   if (!initNative().fnPolling) return null
 
-  const POLL_MS = 30
+  // 10ms sampling with the 2-sample guard = 20ms effective threshold: quick
+  // fn taps (measured ~30-60ms on 2026-10-14) were all swallowed by the old
+  // 30ms×2=60ms window, while a single-sample glitch is still filtered.
+  const POLL_MS = 10
   const isFnDown = (): boolean => {
     try {
       return (BigInt(flagsState!(0)) & kCGEventFlagMaskSecondaryFn) !== 0n
