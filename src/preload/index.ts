@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, shell } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
   CH,
@@ -38,6 +38,11 @@ const settingsApi = {
     const listener = (_e: Electron.IpcRendererEvent, err: { message: string }): void => cb(err)
     ipcRenderer.on(CH.dictationError, listener)
     return () => ipcRenderer.removeListener(CH.dictationError, listener)
+  },
+  openAccessibilitySettings(): void {
+    void shell.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+    )
   }
 }
 

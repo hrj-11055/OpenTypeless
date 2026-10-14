@@ -18,16 +18,16 @@ export interface NativeCapabilities {
 }
 
 let capabilities: NativeCapabilities | null = null
-let flagsState: (() => number | bigint) | null = null
+let flagsState: ((stateID: number) => number | bigint) | null = null
 
 export function initNative(): NativeCapabilities {
   if (capabilities) return capabilities
   capabilities = { coreGraphics: false, fnPolling: false, axTrusted: false }
   try {
     const CG = koffi.load('/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics')
-    flagsState = CG.func('uint64_t CGEventSourceFlagsState(uint32_t stateID)') as unknown as () =>
-      | number
-      | bigint
+    flagsState = CG.func('uint64_t CGEventSourceFlagsState(uint32_t stateID)') as unknown as (
+      stateID: number
+    ) => number | bigint
     capabilities.coreGraphics = true
     capabilities.fnPolling = true
   } catch (err) {

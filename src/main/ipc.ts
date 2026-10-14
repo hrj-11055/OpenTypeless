@@ -9,6 +9,7 @@ import {
 } from './settings/store'
 import { getActiveProvider, listProviders } from './providers/registry'
 import { ProviderError } from './providers/types'
+import { initNative } from './native'
 import type { AppSettings } from './settings/merge'
 
 export interface SanitizedSettings {
@@ -18,6 +19,7 @@ export interface SanitizedSettings {
   maxDurationSec: number
   providerConfig: Record<string, Record<string, unknown>>
   providers: { id: string; label: string; stages: number }[]
+  axTrusted: boolean
 }
 
 /** Settings view for the renderer: models/urls pass through, keys never do. */
@@ -39,7 +41,8 @@ export function sanitizedSettings(): SanitizedSettings {
     providerId: s.providerId,
     maxDurationSec: s.maxDurationSec,
     providerConfig: pc,
-    providers: listProviders()
+    providers: listProviders(),
+    axTrusted: initNative().axTrusted
   }
 }
 

@@ -1,11 +1,14 @@
-import { BrowserWindow, Notification, powerSaveBlocker } from 'electron'
+import { BrowserWindow, Notification, clipboard, powerSaveBlocker } from 'electron'
 import { join } from 'path'
 import { writeFile } from 'fs/promises'
 import { homedir } from 'os'
 import { app } from 'electron'
 import { CH, type RecorderStoppedPayload } from '../shared/channels'
 import { getActiveProvider } from './providers/registry'
-import { ProviderError, type DictationResult } from './providers/types'
+import { ProviderError, type DictationContext, type DictationResult } from './providers/types'
+import { captureSnapshot } from './contextSnapshot'
+import { injectText } from './native/pasteInject'
+import { initNative } from './native'
 
 export type DictationState = 'idle' | 'starting' | 'recording' | 'processing' | 'refining'
 
@@ -26,6 +29,8 @@ export class Orchestrator {
   private lastRefined: DictationResult | null = null
   /** Settings window (or any listener) receiving refined results. */
   private resultListener: BrowserWindow | null = null
+  /** Context captured at dictation start (before recording changes focus). */
+  private snapshotPromise: Promise<DictationContext> | null = null
 
   constructor(private captureWin: BrowserWindow) {}
 
@@ -65,6 +70,8 @@ export class Orchestrator {
 
   private async start(): Promise<void> {
     this.setState('starting')
+    // Snapshot the context NOW: selection/focus exist before we do anything.
+    this.snapshotPromise = captureSnapshot()
     this.psbId = powerSaveBlocker.start('prevent-app-suspension')
     this.captureWin.webContents.send(CH.recorderCommand, {
       action: 'start',
@@ -131,8 +138,10 @@ export class Orchestrator {
       return
     }
     try {
+      const context = await (this.snapshotPromise ?? Promise.resolve({ localeHint: 'auto' as const }))
+      console.log(`[dictation] context: ${JSON.stringify(context)}`)
       const result = await active.provider.run(
-        { audio: payload, context: { localeHint: 'auto' }, mode: 'refine' },
+        { audio: payload, context, mode: 'refine' },
         active.cfg,
         AbortSignal.timeout(90_000)
       )
@@ -141,9 +150,16 @@ export class Orchestrator {
       if (this.resultListener && !this.resultListener.isDestroyed()) {
         this.resultListener.webContents.send(CH.dictationResult, result)
       }
+      // Injection: paste at the cursor. Degrade to clipboard + hint when the
+      // native path is unavailable (no AX trust).
+      let injected = false
+      if (initNative().axTrusted) injected = await injectText(result.refinedText)
+      if (!injected) clipboard.writeText(result.refinedText)
       new Notification({
-        title: 'OpenTypeless',
-        body: result.refinedText.slice(0, 120)
+        title: injected ? 'OpenTypeless 已注入' : 'OpenTypeless',
+        body: injected
+          ? result.refinedText.slice(0, 120)
+          : `已复制，请手动 ⌘V：${result.refinedText.slice(0, 100)}`
       }).show()
     } catch (err) {
       const msg =

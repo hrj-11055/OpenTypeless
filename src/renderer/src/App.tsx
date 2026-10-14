@@ -70,6 +70,24 @@ export default function App(): React.ReactElement {
       </header>
 
       <section className="card">
+        <h2>权限</h2>
+        <div className="result-meta">
+          <span className={view.axTrusted ? 'ok' : 'err'}>
+            {view.axTrusted ? '辅助功能 ✓（上下文感知与文字注入已启用）' : '辅助功能未授权：仅纯听写，无上下文感知，结果只复制到剪贴板'}
+          </span>
+          {!view.axTrusted && (
+            <button
+              onClick={() =>
+                void window.api.settings.openAccessibilitySettings()
+              }
+            >
+              去授权
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="card">
         <h2>AI 服务</h2>
         <div className="providers">
           {view.providers.map((p) => (

@@ -34,6 +34,7 @@ export interface SettingsView {
   maxDurationSec: number
   providerConfig: Record<string, ProviderConfigView>
   providers: ProviderInfo[]
+  axTrusted: boolean
 }
 
 export interface DictationResultEvent {
@@ -50,6 +51,7 @@ interface SettingsApi {
   testProvider(): Promise<{ ok: boolean; message?: string }>
   onDictationResult(cb: (result: DictationResultEvent) => void): () => void
   onDictationError(cb: (err: { message: string }) => void): () => void
+  openAccessibilitySettings(): void
 }
 
 interface Api {
