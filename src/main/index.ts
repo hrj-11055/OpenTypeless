@@ -11,6 +11,7 @@ import {
 import { Orchestrator } from './orchestrator'
 import { createTray, type TrayHandle } from './tray'
 import { registerSettingsIpc } from './ipc'
+import { createFnWatcher, initNative } from './native'
 import { CH, type RecorderStoppedPayload } from '../shared/channels'
 
 // Keep dev-run data (settings/db/TCC grants) separate from the packaged app's.
@@ -68,6 +69,17 @@ app.whenReady().then(() => {
   registerSettingsIpc()
 
   shortcutHandle = registerDictationShortcut(DEFAULT_SHORTCUT, () => orchestrator?.toggle())
+
+  // Primary trigger: fn/globe key (WeChat-Input-Method style), toggled by
+  // polling the combined session key state. Keyboard shortcut stays as backup.
+  initNative()
+  const fnWatcher = createFnWatcher()
+  if (fnWatcher) {
+    fnWatcher.start(() => orchestrator?.toggle())
+    console.log('[shortcut] fn-key trigger active (keyboard shortcut also armed)')
+  } else {
+    console.log('[shortcut] fn-key unavailable, keyboard shortcut only')
+  }
 
   // Re-register after sleep/wake: macOS occasionally drops hotkey registrations.
   powerMonitor.on('resume', () => {

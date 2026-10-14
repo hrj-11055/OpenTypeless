@@ -20,13 +20,15 @@ export function createTray(onOpenSettings: () => void, getState: () => Dictation
   const stateLabel = (): string => {
     switch (getState()) {
       case 'recording':
-        return '● 录音中…（再按快捷键结束）'
+        return '● 录音中…（再按 Fn 结束）'
       case 'processing':
         return '… 处理中'
       case 'starting':
         return '… 启动中'
+      case 'refining':
+        return '… AI 润色中'
       default:
-        return '就绪'
+        return '就绪（按 Fn 或 Ctrl+Cmd+V 开始）'
     }
   }
 
