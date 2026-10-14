@@ -5,14 +5,25 @@ export const CH = {
   // capture renderer -> main
   recorderStarted: 'recorder:started',
   recorderStopped: 'recorder:stopped',
-  recorderError: 'recorder:error'
+  recorderError: 'recorder:error',
+  // settings renderer <-> main (invoke)
+  settingsGet: 'settings:get',
+  settingsSet: 'settings:set',
+  providerTest: 'provider:test',
+  // main -> settings renderer
+  dictationResult: 'dictation:result'
 } as const
 
 export type RecorderCommand = { action: 'start'; maxDurationSec: number } | { action: 'stop' }
 
-export interface RecorderStoppedPayload {
+export interface AudioPart {
   data: Uint8Array
   mimeType: string
+}
+
+export interface RecorderStoppedPayload {
+  webm: AudioPart
+  wav?: AudioPart
   durationMs: number
 }
 

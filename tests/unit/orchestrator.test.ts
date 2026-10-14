@@ -13,7 +13,12 @@ vi.mock('electron', () => ({
     isStarted: vi.fn((id: number) => true),
     stop: vi.fn()
   },
-  app: { isPackaged: true },
+  app: { isPackaged: true, getPath: (): string => '/tmp/opentypeless-test' },
+  safeStorage: {
+    isEncryptionAvailable: vi.fn(() => false),
+    encryptString: vi.fn(),
+    decryptString: vi.fn()
+  },
   BrowserWindow: class {},
   ipcMain: { on: vi.fn() },
   session: { defaultSession: { setPermissionRequestHandler: vi.fn() } },
@@ -37,7 +42,7 @@ beforeEach(() => {
 })
 
 describe('Orchestrator state machine', () => {
-  it('idle -> starting -> recording -> processing -> idle on happy path', () => {
+  it('idle -> starting -> recording -> processing -> refining -> idle on happy path', () => {
     const win = fakeWin()
     const orch = new Orchestrator(win as never)
     const states: string[] = []
@@ -57,14 +62,14 @@ describe('Orchestrator state machine', () => {
     expect(win.webContents.send).toHaveBeenCalledWith(CH.recorderCommand, { action: 'stop' })
     expect(orch.getState()).toBe('processing')
 
+    // No provider configured in test env: refine path degrades gracefully.
     orch.onStopped({
-      data: new Uint8Array(4),
-      mimeType: 'audio/webm',
+      webm: { data: new Uint8Array(4), mimeType: 'audio/webm' },
       durationMs: 1000
     })
     expect(orch.getState()).toBe('idle')
     expect(orch.getLastResult()?.durationMs).toBe(1000)
-    expect(states).toEqual(['idle', 'starting', 'recording', 'processing', 'idle'])
+    expect(states).toEqual(['idle', 'starting', 'recording', 'processing', 'refining', 'idle'])
   })
 
   it('recovers to idle if the capture window never confirms start', () => {

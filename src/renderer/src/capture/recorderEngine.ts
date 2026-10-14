@@ -18,6 +18,14 @@ let chunks: Blob[] = []
 let stream: MediaStream | null = null
 let startedAt = 0
 let autoStopTimer: number | null = null
+let onStoppedCallback:
+  | ((
+      audio: { webm: { data: Uint8Array; mimeType: string }; wav?: { data: Uint8Array; mimeType: string } },
+      durationMs: number,
+      autoStopped: boolean
+    ) => void)
+  | null = null
+
 let stopRequested = false
 
 export function isRecording(): boolean {
@@ -69,9 +77,20 @@ export async function startRecording(maxDurationSec: number, onAutoStop: () => v
     const durationMs = Date.now() - startedAt
     const blob = new Blob(chunks, { type: mimeType })
     releaseStream()
-    void blob.arrayBuffer().then((ab) => {
-      onStoppedCallback?.(new Uint8Array(ab), mimeType, durationMs, stopRequested)
-    })
+    void (async () => {
+      const [webmBuf, wavBuf] = await Promise.all([
+        blob.arrayBuffer(),
+        import('./wav').then((m) => m.blobToWav16kMono(blob))
+      ])
+      onStoppedCallback?.(
+        {
+          webm: { data: new Uint8Array(webmBuf), mimeType },
+          wav: wavBuf ? { data: new Uint8Array(wavBuf), mimeType: 'audio/wav' } : undefined
+        },
+        durationMs,
+        stopRequested
+      )
+    })()
   }
 
   // Regular timeslice keeps chunks flushing even if the page is throttled,
@@ -97,12 +116,12 @@ export function stopRecording(): boolean {
   return true
 }
 
-let onStoppedCallback:
-  | ((data: Uint8Array, mimeType: string, durationMs: number, autoStopped: boolean) => void)
-  | null = null
-
 export function setOnStopped(
-  cb: (data: Uint8Array, mimeType: string, durationMs: number, autoStopped: boolean) => void
+  cb: (
+    audio: { webm: { data: Uint8Array; mimeType: string }; wav?: { data: Uint8Array; mimeType: string } },
+    durationMs: number,
+    autoStopped: boolean
+  ) => void
 ): void {
   onStoppedCallback = cb
 }

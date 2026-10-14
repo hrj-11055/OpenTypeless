@@ -24,7 +24,19 @@ const recorderApi = {
   }
 }
 
-const api = { recorder: recorderApi }
+const settingsApi = {
+  get: (): Promise<unknown> => ipcRenderer.invoke(CH.settingsGet),
+  set: (patch: Record<string, unknown>): Promise<unknown> => ipcRenderer.invoke(CH.settingsSet, patch),
+  testProvider: (): Promise<{ ok: boolean; message?: string }> =>
+    ipcRenderer.invoke(CH.providerTest),
+  onDictationResult(cb: (result: unknown) => void): () => void {
+    const listener = (_e: Electron.IpcRendererEvent, result: unknown): void => cb(result)
+    ipcRenderer.on(CH.dictationResult, listener)
+    return () => ipcRenderer.removeListener(CH.dictationResult, listener)
+  }
+}
+
+const api = { recorder: recorderApi, settings: settingsApi }
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

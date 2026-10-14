@@ -16,6 +16,7 @@ export function registerDictationShortcut(
 ): ShortcutHandle | null {
   globalShortcut.unregister(accelerator)
   const ok = globalShortcut.register(accelerator, onToggle)
+  console.log(`[shortcut] register ${accelerator} -> ${ok ? 'ok' : 'FAILED (taken by another app)'}`)
   if (!ok) {
     new Notification({
       title: 'OpenTypeless',

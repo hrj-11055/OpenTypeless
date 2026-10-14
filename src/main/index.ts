@@ -10,6 +10,7 @@ import {
 } from './shortcuts'
 import { Orchestrator } from './orchestrator'
 import { createTray, type TrayHandle } from './tray'
+import { registerSettingsIpc } from './ipc'
 import { CH, type RecorderStoppedPayload } from '../shared/channels'
 
 // Keep dev-run data (settings/db/TCC grants) separate from the packaged app's.
@@ -33,6 +34,11 @@ function openSettings(): void {
     settingsWindow.focus()
   } else {
     settingsWindow = createSettingsWindow()
+    settingsWindow.on('closed', () => {
+      if (orchestrator) orchestrator.setResultListener(null)
+      settingsWindow = null
+    })
+    orchestrator?.setResultListener(settingsWindow)
   }
 }
 
@@ -59,6 +65,7 @@ app.whenReady().then(() => {
   const captureWindow = createCaptureWindow()
   orchestrator = new Orchestrator(captureWindow)
   wireRecorderIpc(orchestrator)
+  registerSettingsIpc()
 
   shortcutHandle = registerDictationShortcut(DEFAULT_SHORTCUT, () => orchestrator?.toggle())
 

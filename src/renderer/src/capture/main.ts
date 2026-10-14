@@ -18,6 +18,6 @@ api.onCommand(async (cmd) => {
   }
 })
 
-setOnStopped((data, mimeType, durationMs) => {
-  api.sendStopped({ data, mimeType, durationMs })
+setOnStopped((audio, durationMs) => {
+  api.sendStopped({ ...audio, durationMs })
 })
