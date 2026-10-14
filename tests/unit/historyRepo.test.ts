@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 
 // better-sqlite3 is rebuilt for the Electron ABI by postinstall; in a plain
 // node vitest run the module may not load — skip gracefully when it can't.
@@ -13,8 +13,16 @@ try {
 const maybe = Database ? describe : describe.skip
 
 maybe('historyRepo', () => {
-  const { createHistoryRepo } = require('../../src/main/db/historyRepo')
-  const { openDbForTest } = require('../../src/main/db/test-helper')
+  // Native require() cannot resolve .ts paths — load through vitest's
+  // transform via dynamic import (assigned in beforeAll so the skip
+  // guard above still applies first).
+  let createHistoryRepo: (typeof import('../../src/main/db/historyRepo'))['createHistoryRepo']
+  let openDbForTest: (typeof import('../../src/main/db/test-helper'))['openDbForTest']
+
+  beforeAll(async () => {
+    ;({ createHistoryRepo } = await import('../../src/main/db/historyRepo'))
+    ;({ openDbForTest } = await import('../../src/main/db/test-helper'))
+  })
 
   it('inserts, lists, searches, deletes, clears', () => {
     const repo = createHistoryRepo(openDbForTest())
