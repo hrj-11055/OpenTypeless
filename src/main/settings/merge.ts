@@ -60,6 +60,47 @@ function isValidProviderId(id: unknown): id is AppSettings['providerId'] {
   return id === 'gemini' || id === 'openai' || id === 'relay'
 }
 
+const PROVIDER_IDS = ['gemini', 'openai', 'relay'] as const
+
+/**
+ * Apply a renderer settings patch onto the current settings. Per-provider
+ * fields merge over a whitelist: the renderer's copy never contains apiKeyEnc
+ * (sanitizedSettings strips it), so spreading its providerConfig objects
+ * wholesale would wipe the stored ciphertext on every save.
+ */
+export function applySettingsPatch(current: AppSettings, patch: Partial<AppSettings>): AppSettings {
+  const next: AppSettings = {
+    ...current,
+    version: 1,
+    locale: patch.locale === 'en' || patch.locale === 'zh-CN' ? patch.locale : current.locale,
+    shortcut:
+      typeof patch.shortcut === 'string' && patch.shortcut ? patch.shortcut : current.shortcut,
+    providerId: isValidProviderId(patch.providerId) ? patch.providerId : current.providerId,
+    maxDurationSec:
+      typeof patch.maxDurationSec === 'number' &&
+      patch.maxDurationSec >= 10 &&
+      patch.maxDurationSec <= 300
+        ? Math.floor(patch.maxDurationSec)
+        : current.maxDurationSec,
+    providerConfig: { ...current.providerConfig }
+  }
+  const incoming = patch.providerConfig ?? {}
+  for (const id of PROVIDER_IDS) {
+    const raw = (incoming as Record<string, unknown>)[id]
+    if (!raw || typeof raw !== 'object') continue
+    const r = raw as Record<string, unknown>
+    const merged = { ...next.providerConfig[id] }
+    // Whitelist only — apiKeyEnc and UI hints (keyConfigured/keyWorking) never
+    // come from the renderer. Empty strings count: clearing a field is legit.
+    for (const field of ['model', 'sttModel', 'refineModel', 'baseUrl'] as const) {
+      const v = r[field]
+      if (typeof v === 'string') merged[field] = v
+    }
+    next.providerConfig[id] = merged
+  }
+  return next
+}
+
 function sanitizeProvider(raw: unknown): ProviderSettings {
   if (!raw || typeof raw !== 'object') return {}
   const r = raw as Record<string, unknown>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { defaultSettings, mergeSettings } from '../../src/main/settings/merge'
+import { defaultSettings, mergeSettings, applySettingsPatch } from '../../src/main/settings/merge'
 
 describe('mergeSettings', () => {
   it('returns defaults for garbage input', () => {
@@ -45,5 +45,61 @@ describe('mergeSettings', () => {
 
   it('rejects unknown provider ids', () => {
     expect(mergeSettings({ providerId: 'skynet' }).providerId).toBe('gemini')
+  })
+})
+
+describe('applySettingsPatch', () => {
+  const base = mergeSettings({
+    providerId: 'relay',
+    providerConfig: { relay: { apiKeyEnc: 'enc-abc', model: 'm1', baseUrl: 'https://x/v1' } }
+  })
+
+  it('keeps stored apiKeyEnc when the patch omits it (renderer never holds it)', () => {
+    const next = applySettingsPatch(base, {
+      providerId: 'relay',
+      // Exactly what the renderer sends: sanitized view fields only.
+      providerConfig: { relay: { model: 'm2', baseUrl: 'https://x/v1', keyConfigured: true } }
+    })
+    expect(next.providerConfig.relay.apiKeyEnc).toBe('enc-abc')
+    expect(next.providerConfig.relay.model).toBe('m2')
+  })
+
+  it('does not persist UI-only fields (keyConfigured/keyWorking)', () => {
+    const next = applySettingsPatch(base, {
+      providerConfig: { relay: { keyConfigured: true, keyWorking: true } }
+    })
+    const stored = next.providerConfig.relay as Record<string, unknown>
+    expect(stored.keyConfigured).toBeUndefined()
+    expect(stored.keyWorking).toBeUndefined()
+  })
+
+  it('ignores a renderer-sent apiKeyEnc and keeps the stored one', () => {
+    const next = applySettingsPatch(base, {
+      providerConfig: { relay: { apiKeyEnc: 'forged' } }
+    })
+    expect(next.providerConfig.relay.apiKeyEnc).toBe('enc-abc')
+  })
+
+  it('merges other providers untouched and coerces scalar fields', () => {
+    const next = applySettingsPatch(base, {
+      locale: 'en',
+      maxDurationSec: 9999,
+      shortcut: '',
+      providerConfig: { openai: { sttModel: 'whisper-2' } }
+    })
+    expect(next.locale).toBe('en')
+    expect(next.maxDurationSec).toBe(120) // out of range -> keep current
+    expect(next.shortcut).toBe('Control+Command+V') // empty -> keep current
+    expect(next.providerConfig.relay.apiKeyEnc).toBe('enc-abc')
+    expect(next.providerConfig.openai.sttModel).toBe('whisper-2')
+    expect(next.providerConfig.gemini.model).toBe('gemini-flash-latest')
+  })
+
+  it('allows clearing an optional field with an empty string', () => {
+    const next = applySettingsPatch(base, {
+      providerConfig: { relay: { baseUrl: '' } }
+    })
+    expect(next.providerConfig.relay.baseUrl).toBe('')
+    expect(next.providerConfig.relay.apiKeyEnc).toBe('enc-abc')
   })
 })

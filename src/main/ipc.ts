@@ -8,6 +8,7 @@ import {
   hasApiKey
 } from './settings/store'
 import { getActiveProvider, listProviders } from './providers/registry'
+import { applySettingsPatch } from './settings/merge'
 import { ProviderError } from './providers/types'
 import { initNative } from './native'
 import type { HistoryRepo } from './db/historyRepo'
@@ -61,23 +62,18 @@ export function registerSettingsIpc(
     ipcMain.handle(CH.historyClear, () => historyRepo.clear())
   }
 
-  // Renderer sends a full settings patch; apiKey (if non-empty) is a fresh
+  // Renderer sends a settings patch; apiKey (if non-empty) is a fresh
   // plaintext key that main encrypts immediately. Empty apiKey = keep stored.
+  // Order matters: saveSettings(next) first, then setApiKey — setApiKey loads
+  // the just-saved cache and re-saves with the ciphertext, so the key is never
+  // clobbered by a second plain write.
   ipcMain.handle(CH.settingsSet, (_e, patch: Partial<AppSettings> & { apiKey?: string }) => {
     const current = loadSettings()
-    const next: AppSettings = {
-      ...current,
-      ...patch,
-      version: 1,
-      providerConfig: {
-        ...current.providerConfig,
-        ...(patch.providerConfig ?? {})
-      }
-    }
     const apiKey = patch.apiKey
     delete (patch as Record<string, unknown>).apiKey
-    if (apiKey) setApiKey(next.providerId, apiKey)
+    const next = applySettingsPatch(current, patch)
     saveSettings(next)
+    if (apiKey) setApiKey(next.providerId, apiKey)
     if (patch.shortcut && patch.shortcut !== current.shortcut) {
       onShortcutChanged?.(next.shortcut)
     }
